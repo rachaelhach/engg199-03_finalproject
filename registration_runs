@@ -1,0 +1,582 @@
+
+// Prevent this header file from being included multiple times
+// Ok try to make this guy your final project
+#pragma once
+
+// VTK header files
+#include <vtkPNGReader.h>
+#include <vtkSmartPointer.h>
+#include <vtkImageViewer2.h>
+#include <vtkActor.h>
+#include <vtkImageMapToWindowLevelColors.h>
+#include <vtkImageData.h>
+#include <vtkRenderWindowInteractor.h>
+#include <vtkDICOMImageReader.h> 
+
+// ITK header files
+#include <itkImage.h>
+#include <itkImageFileReader.h>
+#include <itkImageFileWriter.h>
+#include <itkScalarImageKmeansImageFilter.h>
+
+#include "itkImageRegistrationMethod.h"
+#include "itkTranslationTransform.h"
+#include "itkMutualInformationImageToImageMetric.h"
+#include "itkGradientDescentOptimizer.h"
+
+#include "itkNormalizeImageFilter.h"
+#include "itkDiscreteGaussianImageFilter.h"
+
+
+#include "itkImageFileReader.h"
+#include "itkImageFileWriter.h"
+
+#include "itkResampleImageFilter.h"
+#include "itkCastImageFilter.h"
+#include "itkCheckerBoardImageFilter.h"
+
+
+
+// Qt header files
+#include <QFileDialog.h>
+#include <QMainWindow.h>
+#include <QLayout.h>
+#include <QPushButton.h>
+#include <QVTKWidget.h>
+#include <QSlider.h>
+#include <QSettings.h>
+
+// OpenCV header files
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/objdetect.hpp>
+#include <opencv2/videoio.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
+// Additional Header files
+#include <iostream>
+#include <fstream>
+
+#include "itkCommand.h"
+class CommandIterationUpdate : public itk::Command
+{
+public:
+	using Self = CommandIterationUpdate;
+	using Superclass = itk::Command;
+	using Pointer = itk::SmartPointer<Self>;
+	itkNewMacro(Self);
+
+protected:
+	CommandIterationUpdate() {};
+
+public:
+	using OptimizerType = itk::GradientDescentOptimizer;
+	using OptimizerPointer = const OptimizerType   *;
+
+	void Execute(itk::Object *caller, const itk::EventObject & event) override
+	{
+		Execute((const itk::Object *)caller, event);
+	}
+
+	void Execute(const itk::Object * object, const itk::EventObject & event) override
+	{
+		auto optimizer = dynamic_cast< OptimizerPointer >(object);
+		if (!itk::IterationEvent().CheckEvent(&event))
+		{
+			return;
+		}
+		std::cout << optimizer->GetCurrentIteration() << "   ";
+		std::cout << optimizer->GetValue() << "   ";
+		std::cout << optimizer->GetCurrentPosition() << std::endl;
+	}
+};
+
+
+// Class that represents the main window for our application
+class ui : public QMainWindow
+{
+	Q_OBJECT
+public:
+	// CLASS VARIABLES HERE
+	QPushButton *button1;
+	QPushButton *button2;
+	QPushButton *button3;
+	QPushButton *button4;
+	QVTKWidget *viewport1;
+	QVTKWidget *viewport2;
+	QVTKWidget *viewport3;
+	QSlider *slider;
+	vtkSmartPointer<vtkPNGReader> reader;
+	vtkSmartPointer<vtkPNGReader> reader2;
+	vtkSmartPointer<vtkPNGReader> reader3;
+	vtkSmartPointer<vtkImageViewer2> viewer1;
+	vtkSmartPointer<vtkImageViewer2> viewer2;
+	vtkSmartPointer<vtkImageViewer2> viewer3;
+	QString file1;
+	QString file2;
+
+	itk::ImageFileReader< itk::Image< unsigned char, 2 > >::Pointer itkreader;
+	itk::ImageFileWriter<itk::Image<unsigned char, 2>>::Pointer writer;
+	itk::ScalarImageKmeansImageFilter< itk::Image< unsigned char, 2 > >::Pointer kmeans;
+
+
+	// Constructor (happens when created)
+	ui()
+	{
+		// Resize the window
+		this->resize(1200, 800); // CHANGE THIS
+
+		// Create the "central" (primary) widget for the window
+		QWidget *widget = new QWidget();
+		this->setCentralWidget(widget);
+
+		// Create your widgets
+		// YOUR CODE HERE
+		button1 = new QPushButton("Load Cherenkov Data");
+		button1->setFixedSize(150, 30);
+		button2 = new QPushButton("Load Reflect RS Data");
+		button2->setFixedSize(300, 30);
+		button3 = new QPushButton("Register Data in ITK");
+		button3->setFixedSize(200, 30);
+		button4 = new QPushButton("Project in 3D");
+		button4->setFixedSize(200, 30);
+		viewport1 = new QVTKWidget();
+		viewport1->setFixedSize(600, 300);
+		viewport2 = new QVTKWidget();
+		viewport2->setFixedSize(600, 300);
+		viewport3 = new QVTKWidget();
+		viewport3->setFixedSize(1200, 400);
+
+		slider = new QSlider();
+		slider->setOrientation(Qt::Horizontal);
+
+
+		// Layout the widgets
+		QVBoxLayout *layout_vertical = new QVBoxLayout();
+		QVBoxLayout *layout_vertical2 = new QVBoxLayout();
+		QVBoxLayout *layout_vertical3 = new QVBoxLayout();
+		QVBoxLayout *layout_vertical4 = new QVBoxLayout();
+		QHBoxLayout *layout_horizontal1 = new QHBoxLayout();
+		QHBoxLayout *layout_horizontal2 = new QHBoxLayout();
+		QHBoxLayout *layout_horizontal3 = new QHBoxLayout();
+		widget->setLayout(layout_vertical);
+
+		layout_vertical->addLayout(layout_horizontal1);
+		layout_horizontal1->addLayout(layout_vertical2);
+		layout_vertical2->addWidget(viewport1);
+		layout_vertical2->addLayout(layout_horizontal2);
+		layout_horizontal2->addWidget(button1);
+		layout_horizontal2->addWidget(slider);
+		layout_horizontal1->addLayout(layout_vertical3);
+		layout_vertical3->addWidget(viewport2);
+		layout_vertical3->addWidget(button2);
+
+		layout_vertical->addWidget(viewport3);
+		layout_vertical->addLayout(layout_horizontal3);
+		layout_horizontal3->addWidget(button3);
+		layout_horizontal3->addWidget(button4);
+
+
+		// Connected widget signals to slots
+		connect(button1, SIGNAL(released()), this, SLOT(load_ckov()));
+		connect(button2, SIGNAL(released()), this, SLOT(load_reflect()));
+		connect(button3, SIGNAL(released()), this, SLOT(itk_reg()));
+		connect(button4, SIGNAL(released()), this, SLOT(3Dproj()));
+		connect(slider, SIGNAL(valueChanged(int)), this, SLOT(slider_changed(int)));
+
+		// Display the window
+		this->show();
+	}
+
+	// Define Slots
+	public slots: 
+
+	void load_ckov()
+	{
+		file1 = QFileDialog::getOpenFileName(this,
+			tr("Load Cherenkov Data"), "C:/engg199-03", tr("Image Files (*.png)"));
+
+		//file1 = QFileDialog::getOpenFileName(this,
+		//	tr("Open Image"), "C:/engg199-03", tr("Image Files (*.png)"));
+
+		std::string fileName = file1.toUtf8().constData();
+		const char *fileName_final1 = fileName.c_str();
+
+
+		//read png file from path
+		reader = vtkSmartPointer<vtkPNGReader>::New();
+		reader->SetFileName(fileName_final1);
+		reader->Update();
+
+		// Now implement the image viewer
+		viewer1 = vtkSmartPointer<vtkImageViewer2>::New();
+		viewer1->SetInputConnection(reader->GetOutputPort());
+		viewer1->SetRenderWindow(viewport1->GetRenderWindow());
+		viewer1->Render();
+
+
+		QSettings qs("meas_s1_cam0.dovi", QSettings::IniFormat);
+		int x = qs.value("dims0", 0).toInt();
+		int y = qs.value("dims1", 0).toInt();
+		int z = qs.value("dims2", 0).toInt();
+
+
+		//vtkSmartPointer<vtkImageReader2> imgReader = vtkSmartPointer<vtkImageReader2>::New();
+		//imgReader->SetFileDimensionality(3);
+		//imgReader->SetFileName("meas_s1_cam0.raw");
+		//imgReader->SetNumberOfScalarComponents(1);
+		//imgReader->SetDataScalarTypeToUnsignedShort(); // We use unsigned short for our data type
+		//imgReader->SetDataExtent(0, x - 1, 0, y - 1, 0, z - 1);
+
+
+		//std::string fileName1 = file1.toUtf8().constData();
+		//const char *fileName_final1 = fileName1.c_str();
+
+
+		// Now implement the image viewer
+		//viewer1 = vtkSmartPointer<vtkImageViewer2>::New();
+		//viewer1->SetInputConnection(imgReader->GetOutputPort());
+		//viewer1->SetRenderWindow(viewport1->GetRenderWindow());
+		//viewer1->Render();
+
+	}
+
+	void load_reflect()
+	{
+
+		file2 = QFileDialog::getOpenFileName(this,
+			tr("Open Image"), "C:/engg199-03", tr("Image Files (*.png)"));
+
+		std::string fileName2 = file2.toUtf8().constData();
+		const char *fileName_final2 = fileName2.c_str();
+
+		//read png file from path
+		reader = vtkSmartPointer<vtkPNGReader>::New();
+		reader->SetFileName(fileName_final2);
+		reader->Update();
+
+		// Now implement the image viewer
+		viewer2 = vtkSmartPointer<vtkImageViewer2>::New();
+		viewer2->SetInputConnection(reader->GetOutputPort());
+		viewer2->SetRenderWindow(viewport2->GetRenderWindow());
+		viewer2->Render();
+
+	}
+
+	void itk_reg()
+	{
+		std::string fileName_final1 = file1.toUtf8().constData();
+		const char *fixedImageFile = fileName_final1.c_str();
+
+		std::string fileName_final2 = file1.toUtf8().constData();
+		const char *movingImageFile = fileName_final2.c_str();
+
+		//const char * fixedImageFile; //"C:/incoming/b1.png";
+		//const char * movingImageFile; // = "C:/incoming/b2.png";
+		const char * outputImageFile = "C:/engg199-03/finalproject3/data/output.png";
+		const char * checkerBoardBefore = "C:/engg199-03/finalproject3/data/chk_before.png";
+		const char * checkerBoardAfter = "C:/engg199-03/finalproject3/data/chk_after.png";
+
+		constexpr unsigned int Dimension = 2;
+		using PixelType = unsigned short;
+
+		using FixedImageType = itk::Image< PixelType, Dimension >;
+		using MovingImageType = itk::Image< PixelType, Dimension >;
+
+		//  It is convenient to work with an internal image type because mutual
+		//  information will perform better on images with a normalized statistical
+		//  distribution. The fixed and moving images will be normalized and
+		//  converted to this internal type.
+		using InternalPixelType = float;
+		using InternalImageType = itk::Image< InternalPixelType, Dimension >;
+
+		using TransformType = itk::TranslationTransform< double, Dimension >;
+		using OptimizerType = itk::GradientDescentOptimizer;
+		using InterpolatorType = itk::LinearInterpolateImageFunction<InternalImageType,double>;
+		using RegistrationType = itk::ImageRegistrationMethod<InternalImageType,InternalImageType >;
+
+		using MetricType = itk::MutualInformationImageToImageMetric<
+			InternalImageType,
+			InternalImageType >;
+
+
+		TransformType::Pointer      transform = TransformType::New();
+		OptimizerType::Pointer      optimizer = OptimizerType::New();
+		InterpolatorType::Pointer   interpolator = InterpolatorType::New();
+		RegistrationType::Pointer   registration = RegistrationType::New();
+		MetricType::Pointer         metric = MetricType::New();
+
+		registration->SetOptimizer(optimizer);
+		registration->SetTransform(transform);
+		registration->SetInterpolator(interpolator);
+		registration->SetMetric(metric);
+
+		//  The metric requires a number of parameters to be selected, including
+		//  the standard deviation of the Gaussian kernel for the fixed image
+		//  density estimate, the standard deviation of the kernel for the moving
+		//  image density and the number of samples use to compute the densities
+		//  and entropy values. Experience has
+		//  shown that a kernel standard deviation of 0.4 works well for images
+		//  which have been normalized to a mean of zero and unit variance.  We
+		//  will follow this empirical rule in this example.
+		metric->SetFixedImageStandardDeviation(0.4);
+		metric->SetMovingImageStandardDeviation(0.4);
+
+		using FixedImageReaderType = itk::ImageFileReader< FixedImageType  >;
+		using MovingImageReaderType = itk::ImageFileReader< MovingImageType >;
+
+		FixedImageReaderType::Pointer  fixedImageReader =
+			FixedImageReaderType::New();
+		MovingImageReaderType::Pointer movingImageReader =
+			MovingImageReaderType::New();
+
+		fixedImageReader->SetFileName(fixedImageFile);
+		movingImageReader->SetFileName(movingImageFile);
+
+		using FixedNormalizeFilterType = itk::NormalizeImageFilter< FixedImageType, InternalImageType >;
+
+		using MovingNormalizeFilterType = itk::NormalizeImageFilter< MovingImageType, InternalImageType >;
+
+		FixedNormalizeFilterType::Pointer fixedNormalizer =
+			FixedNormalizeFilterType::New();
+
+		MovingNormalizeFilterType::Pointer movingNormalizer =
+			MovingNormalizeFilterType::New();
+
+		using GaussianFilterType = itk::DiscreteGaussianImageFilter< InternalImageType, InternalImageType >;
+
+		GaussianFilterType::Pointer fixedSmoother = GaussianFilterType::New();
+		GaussianFilterType::Pointer movingSmoother = GaussianFilterType::New();
+
+		fixedSmoother->SetVariance(2.0);
+		movingSmoother->SetVariance(2.0);
+
+		fixedNormalizer->SetInput(fixedImageReader->GetOutput());
+		movingNormalizer->SetInput(movingImageReader->GetOutput());
+
+		fixedSmoother->SetInput(fixedNormalizer->GetOutput());
+		movingSmoother->SetInput(movingNormalizer->GetOutput());
+
+		registration->SetFixedImage(fixedSmoother->GetOutput());
+		registration->SetMovingImage(movingSmoother->GetOutput());
+
+
+		fixedNormalizer->Update();
+		FixedImageType::RegionType fixedImageRegion =
+			fixedNormalizer->GetOutput()->GetBufferedRegion();
+		registration->SetFixedImageRegion(fixedImageRegion);
+
+		using ParametersType = RegistrationType::ParametersType;
+		ParametersType initialParameters(transform->GetNumberOfParameters());
+
+		initialParameters[0] = 0.0;  // Initial offset in mm along X
+		initialParameters[1] = 0.0;  // Initial offset in mm along Y
+
+		registration->SetInitialTransformParameters(initialParameters);
+
+		//  We should now define the number of spatial samples to be considered in
+		//  the metric computation. Note that we were forced to postpone this setting
+		//  until we had done the preprocessing of the images because the number of
+		//  samples is usually defined as a fraction of the total number of pixels in
+		//  the fixed image.
+		//
+		//  The number of spatial samples can usually be as low as $1\%$ of the total
+		//  number of pixels in the fixed image. Increasing the number of samples
+		//  improves the smoothness of the metric from one iteration to another and
+		//  therefore helps when this metric is used in conjunction with optimizers
+		//  that rely of the continuity of the metric values. The trade-off, of
+		//  course, is that a larger number of samples result in longer computation
+		//  times per every evaluation of the metric.
+		//
+		//  It has been demonstrated empirically that the number of samples is not a
+		//  critical parameter for the registration process. When you start fine
+		//  tuning your own registration process, you should start using high values
+		//  of number of samples, for example in the range of 20% to 50% of the
+		//  number of pixels in the fixed image. Once you have succeeded to register
+		//  your images you can then reduce the number of samples progressively until
+		//  you find a good compromise on the time it takes to compute one evaluation
+		//  of the Metric. Note that it is not useful to have very fast evaluations
+		//  of the Metric if the noise in their values results in more iterations
+		//  being required by the optimizer to converge.
+		//  behavior of the metric values as the iterations progress.
+		const unsigned int numberOfPixels = fixedImageRegion.GetNumberOfPixels();
+
+		const auto numberOfSamples = static_cast< unsigned int >(numberOfPixels * 0.01);
+
+		metric->SetNumberOfSpatialSamples(numberOfSamples);
+
+		// For consistent results when regression testing.
+		metric->ReinitializeSeed(121212);
+
+
+		//  Since larger values of mutual information indicate better matches than
+		//  smaller values, we need to maximize the cost function in this example.
+		//  By default the GradientDescentOptimizer class is set to minimize the
+		//  value of the cost-function. It is therefore necessary to modify its
+		//  default behavior by invoking the MaximizeOn() method.
+		//  Additionally, we need to define the optimizer's step size using the
+		//  SetLearningRate() method.
+		optimizer->SetNumberOfIterations(200);
+		optimizer->MaximizeOn();
+
+		// Note that large values of the learning rate will make the optimizer
+		// unstable. Small values, on the other hand, may result in the optimizer
+		// needing too many iterations in order to walk to the extrema of the cost
+		// function. The easy way of fine tuning this parameter is to start with
+		// small values, probably in the range of {5.0, 10.0}. Once the other
+		// registration parameters have been tuned for producing convergence, you
+		// may want to revisit the learning rate and start increasing its value until
+		// you observe that the optimization becomes unstable.  The ideal value for
+		// this parameter is the one that results in a minimum number of iterations
+		// while still keeping a stable path on the parametric space of the
+		// optimization. Keep in mind that this parameter is a multiplicative factor
+		// applied on the gradient of the Metric. Therefore, its effect on the
+		// optimizer step length is proportional to the Metric values themselves.
+		// Metrics with large values will require you to use smaller values for the
+		// learning rate in order to maintain a similar optimizer behavior.
+		optimizer->SetLearningRate(10.0);
+
+		CommandIterationUpdate::Pointer observer = CommandIterationUpdate::New();
+		optimizer->AddObserver(itk::IterationEvent(), observer);
+
+		try
+		{
+			registration->Update();
+			std::cout << "Optimizer stop condition: "
+				<< registration->GetOptimizer()->GetStopConditionDescription()
+				<< std::endl;
+		}
+		
+		catch (itk::ExceptionObject & err)
+		{
+			std::cout << "ExceptionObject caught !" << std::endl;
+			std::cout << err << std::endl;
+			return ;
+		}
+
+		ParametersType finalParameters = registration->GetLastTransformParameters();
+
+		double TranslationAlongX = finalParameters[0];
+		double TranslationAlongY = finalParameters[1];
+
+		unsigned int numberOfIterations = optimizer->GetCurrentIteration();
+
+		double bestValue = optimizer->GetValue();
+
+		// Print out results
+		std::cout << std::endl;
+		std::cout << "Result = " << std::endl;
+		std::cout << " Translation X = " << TranslationAlongX << std::endl;
+		std::cout << " Translation Y = " << TranslationAlongY << std::endl;
+		std::cout << " Iterations    = " << numberOfIterations << std::endl;
+		std::cout << " Metric value  = " << bestValue << std::endl;
+		std::cout << " Numb. Samples = " << numberOfSamples << std::endl;
+
+
+		using ResampleFilterType = itk::ResampleImageFilter<
+			MovingImageType,
+			FixedImageType >;
+
+		TransformType::Pointer finalTransform = TransformType::New();
+
+		finalTransform->SetParameters(finalParameters);
+		finalTransform->SetFixedParameters(transform->GetFixedParameters());
+
+		ResampleFilterType::Pointer resample = ResampleFilterType::New();
+
+		resample->SetTransform(finalTransform);
+		resample->SetInput(movingImageReader->GetOutput());
+
+		FixedImageType::Pointer fixedImage = fixedImageReader->GetOutput();
+
+		resample->SetSize(fixedImage->GetLargestPossibleRegion().GetSize());
+		resample->SetOutputOrigin(fixedImage->GetOrigin());
+		resample->SetOutputSpacing(fixedImage->GetSpacing());
+		resample->SetOutputDirection(fixedImage->GetDirection());
+		resample->SetDefaultPixelValue(100);
+
+
+		using OutputPixelType = unsigned char;
+
+		using OutputImageType = itk::Image< OutputPixelType, Dimension >;
+
+		using CastFilterType = itk::CastImageFilter<
+			FixedImageType,
+			OutputImageType >;
+
+		using WriterType = itk::ImageFileWriter< OutputImageType >;
+
+		WriterType::Pointer      writer = WriterType::New();
+		CastFilterType::Pointer  caster = CastFilterType::New();
+
+		writer->SetFileName(outputImageFile);
+		caster->SetInput(resample->GetOutput());
+		writer->SetInput(caster->GetOutput());
+		writer->Update();
+
+
+		// Generate checkerboards before and after registration
+		using CheckerBoardFilterType = itk::CheckerBoardImageFilter< FixedImageType >;
+
+		CheckerBoardFilterType::Pointer checker = CheckerBoardFilterType::New();
+
+		checker->SetInput1(fixedImage);
+		checker->SetInput2(resample->GetOutput());
+
+		caster->SetInput(checker->GetOutput());
+		writer->SetInput(caster->GetOutput());
+
+		// Before registration
+		TransformType::Pointer identityTransform = TransformType::New();
+		identityTransform->SetIdentity();
+		resample->SetTransform(identityTransform);
+
+		
+		
+			writer->SetFileName(checkerBoardBefore);
+		
+
+		// After registration
+		resample->SetTransform(finalTransform);
+		
+			writer->SetFileName(checkerBoardAfter);
+		
+
+		try
+		{
+			writer->Update();
+		}
+		catch (itk::ExceptionObject & error)
+		{
+			std::cerr << "Error: " << error << std::endl;
+			return;
+		}
+
+		//return EXIT_SUCCESS;
+
+
+
+
+
+
+
+
+	};
+
+	void slider_changed(int value)
+	{
+		// set slider min and max.
+		slider->setRange(0, 2);
+
+		if (viewer1 == NULL)
+			return;
+
+		viewer1->GetWindowLevel()->SetLevel(value); // Set the level 
+		viewer1->GetWindowLevel()->SetWindow(2); // Set the window (display range)
+		viewer1->Render();
+	}
+
+
+};
