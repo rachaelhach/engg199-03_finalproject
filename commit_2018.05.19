@@ -1,0 +1,230 @@
+
+// Prevent this header file from being included multiple times
+// Ok try to make this guy your final project
+#pragma once
+
+// VTK header files
+#include <vtkPNGReader.h>
+#include <vtkSmartPointer.h>
+#include <vtkImageViewer2.h>
+#include <vtkActor.h>
+#include <vtkImageMapToWindowLevelColors.h>
+#include <vtkImageData.h>
+#include <vtkRenderWindowInteractor.h>
+#include <vtkDICOMImageReader.h> 
+
+// ITK header files
+#include <itkImage.h>
+#include <itkImageFileReader.h>
+#include <itkImageFileWriter.h>
+#include <itkScalarImageKmeansImageFilter.h>
+
+// Qt header files
+#include <QFileDialog.h>
+#include <QMainWindow.h>
+#include <QLayout.h>
+#include <QPushButton.h>
+#include <QVTKWidget.h>
+#include <QSlider.h>
+#include <QSettings.h>
+
+// OpenCV header files
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/objdetect.hpp>
+#include <opencv2/videoio.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
+// Additional Header files
+#include <iostream>
+#include <fstream>
+
+
+// Class that represents the main window for our application
+class ui : public QMainWindow
+{
+	Q_OBJECT
+public:
+	// CLASS VARIABLES HERE
+	QPushButton *button1;
+	QPushButton *button2;
+	QPushButton *button3;
+	QPushButton *button4;
+	QVTKWidget *viewport1;
+	QVTKWidget *viewport2;
+	QVTKWidget *viewport3;
+	QSlider *slider;
+	vtkSmartPointer<vtkPNGReader> reader;
+	vtkSmartPointer<vtkPNGReader> reader2;
+	vtkSmartPointer<vtkPNGReader> reader3;
+	vtkSmartPointer<vtkImageViewer2> viewer1;
+	vtkSmartPointer<vtkImageViewer2> viewer2;
+	vtkSmartPointer<vtkImageViewer2> viewer3;
+	QString file1;
+	QString file2;
+
+	itk::ImageFileReader< itk::Image< unsigned char, 2 > >::Pointer itkreader;
+	itk::ImageFileWriter<itk::Image<unsigned char, 2>>::Pointer writer;
+	itk::ScalarImageKmeansImageFilter< itk::Image< unsigned char, 2 > >::Pointer kmeans;
+
+
+	// Constructor (happens when created)
+	ui()
+	{
+		// Resize the window
+		this->resize(1200, 800); // CHANGE THIS
+
+		// Create the "central" (primary) widget for the window
+		QWidget *widget = new QWidget();
+		this->setCentralWidget(widget);
+
+		// Create your widgets
+		// YOUR CODE HERE
+		button1 = new QPushButton("Load Cherenkov Data");
+		button1->setFixedSize(150, 30);
+		button2 = new QPushButton("Load Reflect RS Data");
+		button2->setFixedSize(300, 30);
+		button3 = new QPushButton("Register Data in ITK");
+		button3->setFixedSize(200, 30);
+		button4 = new QPushButton("Project in 3D");
+		button4->setFixedSize(200, 30);
+		viewport1 = new QVTKWidget();
+		viewport1->setFixedSize(600, 300);
+		viewport2 = new QVTKWidget();
+		viewport2->setFixedSize(600, 300);
+		viewport3 = new QVTKWidget();
+		viewport3->setFixedSize(1200, 400);
+
+		slider = new QSlider();
+		slider->setOrientation(Qt::Horizontal);
+
+
+		// Layout the widgets
+		QVBoxLayout *layout_vertical = new QVBoxLayout();
+		QVBoxLayout *layout_vertical2 = new QVBoxLayout();
+		QVBoxLayout *layout_vertical3 = new QVBoxLayout();
+		QVBoxLayout *layout_vertical4 = new QVBoxLayout();
+		QHBoxLayout *layout_horizontal1 = new QHBoxLayout();
+		QHBoxLayout *layout_horizontal2 = new QHBoxLayout();
+		QHBoxLayout *layout_horizontal3 = new QHBoxLayout();
+		widget->setLayout(layout_vertical);
+
+		layout_vertical->addLayout(layout_horizontal1);
+		layout_horizontal1->addLayout(layout_vertical2);
+		layout_vertical2->addWidget(viewport1);
+		layout_vertical2->addLayout(layout_horizontal2);
+		layout_horizontal2->addWidget(button1);
+		layout_horizontal2->addWidget(slider);
+		layout_horizontal1->addLayout(layout_vertical3);
+		layout_vertical3->addWidget(viewport2);
+		layout_vertical3->addWidget(button2);
+
+		layout_vertical->addWidget(viewport3);
+		layout_vertical->addLayout(layout_horizontal3);
+		layout_horizontal3->addWidget(button3);
+		layout_horizontal3->addWidget(button4);
+
+
+		// Connected widget signals to slots
+		connect(button1, SIGNAL(released()), this, SLOT(load_ckov()));
+		connect(button2, SIGNAL(released()), this, SLOT(load_reflect()));
+		connect(button3, SIGNAL(released()), this, SLOT(itk_reg()));
+		connect(button4, SIGNAL(released()), this, SLOT(3Dproj()));
+		connect(slider, SIGNAL(valueChanged(int)), this, SLOT(slider_changed(int)));
+
+		// Display the window
+		this->show();
+	}
+
+	// Define Slots
+	public slots: 
+
+	void load_ckov()
+	{
+		file1 = QFileDialog::getOpenFileName(this,
+			tr("Load Cherenkov Data"), "C:/engg199-03", tr("Image Files (*.png)"));
+
+		//file1 = QFileDialog::getOpenFileName(this,
+		//	tr("Open Image"), "C:/engg199-03", tr("Image Files (*.png)"));
+
+		std::string fileName = file1.toUtf8().constData();
+		const char *fileName_final1 = fileName.c_str();
+
+
+		//read png file from path
+		reader = vtkSmartPointer<vtkPNGReader>::New();
+		reader->SetFileName(fileName_final1);
+		reader->Update();
+
+		// Now implement the image viewer
+		viewer1 = vtkSmartPointer<vtkImageViewer2>::New();
+		viewer1->SetInputConnection(reader->GetOutputPort());
+		viewer1->SetRenderWindow(viewport1->GetRenderWindow());
+		viewer1->Render();
+
+
+		QSettings qs("meas_s1_cam0.dovi", QSettings::IniFormat);
+		int x = qs.value("dims0", 0).toInt();
+		int y = qs.value("dims1", 0).toInt();
+		int z = qs.value("dims2", 0).toInt();
+
+
+		//vtkSmartPointer<vtkImageReader2> imgReader = vtkSmartPointer<vtkImageReader2>::New();
+		//imgReader->SetFileDimensionality(3);
+		//imgReader->SetFileName("meas_s1_cam0.raw");
+		//imgReader->SetNumberOfScalarComponents(1);
+		//imgReader->SetDataScalarTypeToUnsignedShort(); // We use unsigned short for our data type
+		//imgReader->SetDataExtent(0, x - 1, 0, y - 1, 0, z - 1);
+
+
+		//std::string fileName1 = file1.toUtf8().constData();
+		//const char *fileName_final1 = fileName1.c_str();
+
+
+		// Now implement the image viewer
+		//viewer1 = vtkSmartPointer<vtkImageViewer2>::New();
+		//viewer1->SetInputConnection(imgReader->GetOutputPort());
+		//viewer1->SetRenderWindow(viewport1->GetRenderWindow());
+		//viewer1->Render();
+
+	}
+
+	void load_reflect()
+	{
+
+		file2 = QFileDialog::getOpenFileName(this,
+			tr("Open Image"), "C:/engg199-03", tr("Image Files (*.png)"));
+
+		std::string fileName2 = file2.toUtf8().constData();
+		const char *fileName_final2 = fileName2.c_str();
+
+		//read png file from path
+		reader = vtkSmartPointer<vtkPNGReader>::New();
+		reader->SetFileName(fileName_final2);
+		reader->Update();
+
+		// Now implement the image viewer
+		viewer2 = vtkSmartPointer<vtkImageViewer2>::New();
+		viewer2->SetInputConnection(reader->GetOutputPort());
+		viewer2->SetRenderWindow(viewport2->GetRenderWindow());
+		viewer2->Render();
+
+	}
+
+	void slider_changed(int value)
+	{
+		// set slider min and max.
+		slider->setRange(0, 2);
+
+		if (viewer1 == NULL)
+			return;
+
+		viewer1->GetWindowLevel()->SetLevel(value); // Set the level 
+		viewer1->GetWindowLevel()->SetWindow(2); // Set the window (display range)
+		viewer1->Render();
+	}
+
+
+};
