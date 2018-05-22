@@ -1,0 +1,575 @@
+
+// Prevent this header file from being included multiple times
+// Ok try to make this guy your final project
+#pragma once
+
+// VTK header files
+#include <vtkPNGReader.h>
+#include <vtkSmartPointer.h>
+#include <vtkImageViewer2.h>
+#include <vtkActor.h>
+#include <vtkImageMapToWindowLevelColors.h>
+#include <vtkImageData.h>
+#include <vtkRenderWindowInteractor.h>
+#include <vtkDICOMImageReader.h> 
+
+#include <vtkRenderWindow.h>
+#include <vtkRenderer.h>
+#include <vtkJPEGReader.h>
+#include <vtkImageData.h>
+#include <vtkSmartPointer.h>
+#include <vtkImageViewer2.h>
+#include <vtkImageBlend.h>
+
+
+
+// ITK header files
+#include <itkImage.h>
+#include <itkImageFileReader.h>
+#include <itkImageFileWriter.h>
+#include <itkScalarImageKmeansImageFilter.h>
+
+#include "itkImageRegistrationMethod.h"
+#include "itkAffineTransform.h"
+#include "itkMutualInformationImageToImageMetric.h"
+#include "itkGradientDescentOptimizer.h"
+
+#include "itkNormalizeImageFilter.h"
+#include "itkDiscreteGaussianImageFilter.h"
+
+#include "itkImageFileReader.h"
+#include "itkImageFileWriter.h"
+
+#include "itkResampleImageFilter.h"
+#include "itkCastImageFilter.h"
+#include "itkCheckerBoardImageFilter.h"
+
+
+//These header files are for the affine registrtaion.
+#include "itkCastImageFilter.h"
+#include "itkEllipseSpatialObject.h"
+#include "itkImage.h"
+#include "itkImageRegistrationMethod.h"
+#include "itkLinearInterpolateImageFunction.h"
+#include "itkImageFileReader.h"
+#include "itkImageFileWriter.h"
+#include "itkMeanSquaresImageToImageMetric.h"
+#include "itkRegularStepGradientDescentOptimizer.h"
+#include "itkResampleImageFilter.h"
+#include "itkRescaleIntensityImageFilter.h"
+#include "itkSpatialObjectToImageFilter.h"
+#include "itkAffineTransform.h"
+
+
+// Qt header files
+#include <QFileDialog.h>
+#include <QMainWindow.h>
+#include <QLayout.h>
+#include <QPushButton.h>
+#include <QVTKWidget.h>
+#include <QSlider.h>
+#include <QSettings.h>
+
+// OpenCV header files
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/objdetect.hpp>
+#include <opencv2/videoio.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
+// Additional Header files
+#include <iostream>
+#include <fstream>
+
+#include "itkCommand.h"
+class CommandIterationUpdate : public itk::Command
+{
+public:
+	using Self = CommandIterationUpdate;
+	using Superclass = itk::Command;
+	using Pointer = itk::SmartPointer<Self>;
+	itkNewMacro(Self);
+
+protected:
+	CommandIterationUpdate() {};
+
+public:
+	using OptimizerType = itk::GradientDescentOptimizer;
+	using OptimizerPointer = const OptimizerType   *;
+
+	void Execute(itk::Object *caller, const itk::EventObject & event) override
+	{
+		Execute((const itk::Object *)caller, event);
+	}
+
+	void Execute(const itk::Object * object, const itk::EventObject & event) override
+	{
+		auto optimizer = dynamic_cast< OptimizerPointer >(object);
+		if (!itk::IterationEvent().CheckEvent(&event))
+		{
+			return;
+		}
+		std::cout << optimizer->GetCurrentIteration() << "   ";
+		std::cout << optimizer->GetValue() << "   ";
+		std::cout << optimizer->GetCurrentPosition() << std::endl;
+	}
+};
+
+
+// Class that represents the main window for our application
+class ui : public QMainWindow
+{
+	Q_OBJECT
+public:
+	// CLASS VARIABLES HERE
+	QPushButton *button1;
+	QPushButton *button2;
+	QPushButton *button3;
+	QPushButton *button4;
+	QVTKWidget *viewport1;
+	QVTKWidget *viewport2;
+	QVTKWidget *viewport3;
+	QSlider *slider;
+	vtkSmartPointer<vtkPNGReader> reader;
+	vtkSmartPointer<vtkPNGReader> reader2;
+	vtkSmartPointer<vtkPNGReader> reader3;
+	vtkSmartPointer<vtkImageViewer2> viewer1;
+	vtkSmartPointer<vtkImageViewer2> viewer2;
+	vtkSmartPointer<vtkImageViewer2> viewer3;
+	QString file1;
+	QString file2;
+
+	
+
+
+	// Constructor (happens when created)
+	ui()
+	{
+		// Resize the window
+		this->resize(1200, 800); // CHANGE THIS
+
+								 // Create the "central" (primary) widget for the window
+		QWidget *widget = new QWidget();
+		this->setCentralWidget(widget);
+
+		// Create your widgets
+		// YOUR CODE HERE
+		button1 = new QPushButton("Load Cherenkov Data");
+		button1->setFixedSize(150, 30);
+		button2 = new QPushButton("Load Reflect RS Data");
+		button2->setFixedSize(300, 30);
+		button3 = new QPushButton("Register Data in ITK");
+		button3->setFixedSize(200, 30);
+		button4 = new QPushButton("Project in 3D");
+		button4->setFixedSize(200, 30);
+		viewport1 = new QVTKWidget();
+		viewport1->setFixedSize(600, 300);
+		viewport2 = new QVTKWidget();
+		viewport2->setFixedSize(600, 300);
+		viewport3 = new QVTKWidget();
+		viewport3->setFixedSize(1200, 400);
+
+		slider = new QSlider();
+		slider->setOrientation(Qt::Horizontal);
+
+
+		// Layout the widgets
+		QVBoxLayout *layout_vertical = new QVBoxLayout();
+		QVBoxLayout *layout_vertical2 = new QVBoxLayout();
+		QVBoxLayout *layout_vertical3 = new QVBoxLayout();
+		QVBoxLayout *layout_vertical4 = new QVBoxLayout();
+		QHBoxLayout *layout_horizontal1 = new QHBoxLayout();
+		QHBoxLayout *layout_horizontal2 = new QHBoxLayout();
+		QHBoxLayout *layout_horizontal3 = new QHBoxLayout();
+		widget->setLayout(layout_vertical);
+
+		layout_vertical->addLayout(layout_horizontal1);
+		layout_horizontal1->addLayout(layout_vertical2);
+		layout_vertical2->addWidget(viewport1);
+		layout_vertical2->addLayout(layout_horizontal2);
+		layout_horizontal2->addWidget(button1);
+		layout_horizontal2->addWidget(slider);
+		layout_horizontal1->addLayout(layout_vertical3);
+		layout_vertical3->addWidget(viewport2);
+		layout_vertical3->addWidget(button2);
+
+		layout_vertical->addWidget(viewport3);
+		layout_vertical->addLayout(layout_horizontal3);
+		layout_horizontal3->addWidget(button3);
+		layout_horizontal3->addWidget(button4);
+
+
+		// Connected widget signals to slots
+		connect(button1, SIGNAL(released()), this, SLOT(load_ckov()));
+		connect(button2, SIGNAL(released()), this, SLOT(load_reflect()));
+		connect(button3, SIGNAL(released()), this, SLOT(itk_reg()));
+		connect(button4, SIGNAL(released()), this, SLOT(proj_3D()));
+		//connect(button5, SIGNAL(released()), this, SLOT(load_Ct()));
+		connect(slider, SIGNAL(valueChanged(int)), this, SLOT(slider_changed(int)));
+
+		// Display the window
+		this->show();
+	}
+	/*const    unsigned int    Dimension = 2;
+	typedef  unsigned short           PixelType;
+
+	typedef itk::Image< PixelType, 2 >  ImageType;*/
+
+	// Define Slots
+	public slots:
+
+	void load_ckov()
+	{
+		file1 = QFileDialog::getOpenFileName(this,
+			tr("Load Cherenkov Data"), "C:/engg199-03", tr("Image Files (*.png)"));
+
+		//file1 = QFileDialog::getOpenFileName(this,
+		//	tr("Open Image"), "C:/engg199-03", tr("Image Files (*.png)"));
+
+		std::string fileName = file1.toUtf8().constData();
+		const char *fileName_final1 = fileName.c_str();
+
+
+		//read png file from path
+		reader = vtkSmartPointer<vtkPNGReader>::New();
+		reader->SetFileName(fileName_final1);
+		reader->Update();
+
+		// Now implement the image viewer
+		viewer1 = vtkSmartPointer<vtkImageViewer2>::New();
+		viewer1->SetInputConnection(reader->GetOutputPort());
+		viewer1->SetRenderWindow(viewport1->GetRenderWindow());
+		viewer1->Render();
+
+
+		/*QSettings qs("meas_s1_cam0.dovi", QSettings::IniFormat);
+		int x = qs.value("dims0", 0).toInt();
+		int y = qs.value("dims1", 0).toInt();
+		int z = qs.value("dims2", 0).toInt();
+*/
+
+		//vtkSmartPointer<vtkImageReader2> imgReader = vtkSmartPointer<vtkImageReader2>::New();
+		//imgReader->SetFileDimensionality(3);
+		//imgReader->SetFileName("meas_s1_cam0.raw");
+		//imgReader->SetNumberOfScalarComponents(1);
+		//imgReader->SetDataScalarTypeToUnsignedShort(); // We use unsigned short for our data type
+		//imgReader->SetDataExtent(0, x - 1, 0, y - 1, 0, z - 1);
+
+
+		//std::string fileName1 = file1.toUtf8().constData();
+		//const char *fileName_final1 = fileName1.c_str();
+
+
+		// Now implement the image viewer
+		//viewer1 = vtkSmartPointer<vtkImageViewer2>::New();
+		//viewer1->SetInputConnection(imgReader->GetOutputPort());
+		//viewer1->SetRenderWindow(viewport1->GetRenderWindow());
+		//viewer1->Render();
+
+	}
+
+	void load_reflect()
+	{
+
+		file2 = QFileDialog::getOpenFileName(this,
+			tr("Open Image"), "C:/engg199-03", tr("Image Files (*.png)"));
+
+		std::string fileName2 = file2.toUtf8().constData();
+		const char *fileName_final2 = fileName2.c_str();
+
+		//read png file from path
+		reader = vtkSmartPointer<vtkPNGReader>::New();
+		reader->SetFileName(fileName_final2);
+		reader->Update();
+
+		// Now implement the image viewer
+		viewer2 = vtkSmartPointer<vtkImageViewer2>::New();
+		viewer2->SetInputConnection(reader->GetOutputPort());
+		viewer2->SetRenderWindow(viewport2->GetRenderWindow());
+		viewer2->Render();
+
+	}
+
+	void itk_reg()
+	{
+		//itk::ImageFileReader< itk::Image< unsigned short, 2 > >::Pointer itkreader;
+		//itk::ImageFileWriter<itk::Image<unsigned short, 2>>::Pointer writer;
+		//itk::ScalarImageKmeansImageFilter< itk::Image< unsigned char, 2 > >::Pointer kmeans;
+
+
+		//int Dimension = 2;
+		typedef unsigned short PixelType;
+		typedef itk::Image< PixelType, 2 >  ImageType;
+
+		//  The transform that will map the fixed image into the moving image.
+		typedef itk::AffineTransform< double, 2 > TransformType;
+
+		//  An optimizer is required to explore the parameter space of the transform
+		//  in search of optimal values of the metric.
+		typedef itk::RegularStepGradientDescentOptimizer       OptimizerType;
+
+		//  The metric will compare how well the two images match each other. Metric
+		//  types are usually parameterized by the image types as it can be seen in
+		//  the following type declaration.
+		typedef itk::MeanSquaresImageToImageMetric<ImageType,
+			ImageType >    MetricType;
+
+		//  Finally, the type of the interpolator is declared. The interpolator will
+		//  evaluate the intensities of the moving image at non-grid positions.
+		typedef itk::LinearInterpolateImageFunction<
+			ImageType,
+			double          >    InterpolatorType;
+
+		//  The registration method type is instantiated using the types of the
+		//  fixed and moving images. This class is responsible for interconnecting
+		//  all the components that we have described so far.
+		typedef itk::ImageRegistrationMethod<
+			ImageType,
+			ImageType >    RegistrationType;
+
+		// Create components
+		MetricType::Pointer         metric = MetricType::New();
+		TransformType::Pointer      transform = TransformType::New();
+		OptimizerType::Pointer      optimizer = OptimizerType::New();
+		InterpolatorType::Pointer   interpolator = InterpolatorType::New();
+		RegistrationType::Pointer   registration = RegistrationType::New();
+
+		// Each component is now connected to the instance of the registration method.
+		registration->SetMetric(metric);
+		registration->SetOptimizer(optimizer);
+		registration->SetTransform(transform);
+		registration->SetInterpolator(interpolator);
+
+
+
+		// Get the two image strings
+		std::string fileName_final1 = file1.toUtf8().constData();
+		const char *fixedImageStr = fileName_final1.c_str();
+
+		std::string fileName_final2 = file2.toUtf8().constData();
+		const char *movingImageStr = fileName_final2.c_str();
+
+		// Get the two images
+		ImageType::Pointer  fixedImage = ImageType::New();
+		ImageType::Pointer movingImage = ImageType::New();
+
+		//const char * fixedImageFile = "C:\engg199-03\finalproject3\data";
+		//const char * movingImageFile =  "C:\engg199-03\finalproject3\data";
+		const char * outputImageFile = "C:/engg199-03/finalproject3/data/output.png";
+		const char * checkerBoardBefore = "C:/engg199-03/finalproject3/data/chk_before.png";
+		const char * checkerBoardAfter = "C:/engg199-03/finalproject3/data/chk_after.png";
+
+		constexpr unsigned int Dimension = 2;
+		using PixelType = unsigned short;
+
+		using FixedImageType = itk::Image< PixelType, Dimension >;
+		using MovingImageType = itk::Image< PixelType, Dimension >;
+
+		registration->SetOptimizer(optimizer);
+		registration->SetTransform(transform);
+		registration->SetInterpolator(interpolator);
+		registration->SetMetric(metric);
+
+		//  The metric requires a number of parameters to be selected, including
+		//  the standard deviation of the Gaussian kernel for the fixed image
+		//  density estimate, the standard deviation of the kernel for the moving
+		//  image density and the number of samples use to compute the densities
+		//  and entropy values. Experience has
+		//  shown that a kernel standard deviation of 0.4 works well for images
+		//  which have been normalized to a mean of zero and unit variance.  We
+		//  will follow this empirical rule in this example.
+
+		using FixedImageReaderType = itk::ImageFileReader< FixedImageType  >;
+		using MovingImageReaderType = itk::ImageFileReader< MovingImageType >;
+
+		FixedImageReaderType::Pointer  fixedImageReader = FixedImageReaderType::New();
+		MovingImageReaderType::Pointer movingImageReader = MovingImageReaderType::New();
+
+		fixedImageReader->SetFileName(fixedImageStr);
+		movingImageReader->SetFileName(movingImageStr);
+
+		fixedImageReader->Update();
+		movingImageReader->Update();
+		fixedImage = fixedImageReader->GetOutput();
+		movingImage = movingImageReader->GetOutput();
+
+		// Write the two synthetic inputs
+		typedef itk::ImageFileWriter<ImageType> WriterType;
+
+		WriterType::Pointer      fixedWriter = WriterType::New();
+		fixedWriter->SetFileName("C:/engg199-03/finalproject3/data/fixed.png");
+		fixedWriter->SetInput(fixedImage);
+		fixedWriter->Update();
+
+		WriterType::Pointer      movingWriter = WriterType::New();
+		movingWriter->SetFileName("C:/engg199-03/finalproject3/data/moving.png");
+		movingWriter->SetInput(movingImage);
+		movingWriter->Update();
+
+		// Set the registration inputs
+		registration->SetFixedImage(fixedImage);
+		registration->SetMovingImage(movingImage);
+
+		registration->SetFixedImageRegion(fixedImage->GetLargestPossibleRegion());
+		
+		//  Initialize the transform
+		typedef RegistrationType::ParametersType ParametersType;
+		ParametersType initialParameters(transform->GetNumberOfParameters());
+
+		// rotation matrix
+		initialParameters[0] = 1.0;  // R(0,0)
+		initialParameters[1] = 0.0;  // R(0,1)
+		initialParameters[2] = 0.0;  // R(1,0)
+		initialParameters[3] = 1.0;  // R(1,1)
+
+									 // translation vector
+		initialParameters[4] = 0.0;
+		initialParameters[5] = 0.0;
+
+		registration->SetInitialTransformParameters(initialParameters);
+
+		optimizer->SetMaximumStepLength(.1); // If this is set too high, you will get a
+											 //"itk::ERROR: MeanSquaresImageToImageMetric(0xa27ce70): Too many samples map outside moving image buffer: 1818 / 10000" error
+
+		optimizer->SetMinimumStepLength(0.01);
+
+		// Set a stopping criterion
+		optimizer->SetNumberOfIterations(200);
+
+		// Connect an observer
+		//CommandIterationUpdate::Pointer observer = CommandIterationUpdate::New();
+		//optimizer->AddObserver( itk::IterationEvent(), observer );
+
+		try
+		{
+			registration->Update();
+		}
+		catch (itk::ExceptionObject & err)
+		{
+			std::cerr << "ExceptionObject caught !" << std::endl;
+			std::cerr << err << std::endl;
+		}
+
+		//  The result of the registration process is an array of parameters that
+		//  defines the spatial transformation in an unique way. This final result is
+		//  obtained using the \code{GetLastTransformParameters()} method.
+
+		ParametersType finalParameters = registration->GetLastTransformParameters();
+		std::cout << "Final parameters: " << finalParameters << std::endl;
+
+		//  The value of the image metric corresponding to the last set of parameters
+		//  can be obtained with the \code{GetValue()} method of the optimizer.
+
+		const double bestValue = optimizer->GetValue();
+
+		// Print out results
+		//
+		std::cout << "Result = " << std::endl;
+		std::cout << " Metric value  = " << bestValue << std::endl;
+
+		//  It is common, as the last step of a registration task, to use the
+		//  resulting transform to map the moving image into the fixed image space.
+		//  This is easily done with the \doxygen{ResampleImageFilter}.
+
+		typedef itk::ResampleImageFilter<
+			ImageType,
+			ImageType >    ResampleFilterType;
+
+		ResampleFilterType::Pointer resampler = ResampleFilterType::New();
+		resampler->SetInput(movingImage);
+
+		//  The Transform that is produced as output of the Registration method is
+		//  also passed as input to the resampling filter. Note the use of the
+		//  methods \code{GetOutput()} and \code{Get()}. This combination is needed
+		//  here because the registration method acts as a filter whose output is a
+		//  transform decorated in the form of a \doxygen{DataObject}. For details in
+		//  this construction you may want to read the documentation of the
+		//  \doxygen{DataObjectDecorator}.
+
+		resampler->SetTransform(registration->GetOutput()->Get());
+
+		//  As described in Section \ref{sec:ResampleImageFilter}, the
+		//  ResampleImageFilter requires additional parameters to be specified, in
+		//  particular, the spacing, origin and size of the output image. The default
+		//  pixel value is also set to a distinct gray level in order to highlight
+		//  the regions that are mapped outside of the moving image.
+
+		resampler->SetSize(fixedImage->GetLargestPossibleRegion().GetSize());
+		resampler->SetOutputOrigin(fixedImage->GetOrigin());
+		resampler->SetOutputSpacing(fixedImage->GetSpacing());
+		resampler->SetOutputDirection(fixedImage->GetDirection());
+		resampler->SetDefaultPixelValue(100);
+
+		//  The output of the filter is passed to a writer that will store the
+		//  image in a file. An \doxygen{CastImageFilter} is used to convert the
+		//  pixel type of the resampled image to the final type used by the
+		//  writer. The cast and writer filters are instantiated below.
+
+		typedef unsigned char OutputPixelType;
+		typedef itk::Image< OutputPixelType, 2 > OutputImageType;
+		typedef itk::CastImageFilter<
+			ImageType,
+			ImageType > CastFilterType;
+
+		WriterType::Pointer      writer = WriterType::New();
+		CastFilterType::Pointer  caster = CastFilterType::New();
+		writer->SetFileName("output.png");
+
+		caster->SetInput(resampler->GetOutput());
+		writer->SetInput(caster->GetOutput());
+		writer->Update();
+	}
+
+
+	void proj_3D()
+	{
+		std::string fileName_final1 = file1.toUtf8().constData();
+		const char *fixedImageFile = fileName_final1.c_str();
+
+		vtkSmartPointer<vtkPNGReader> Reader1 =
+			vtkSmartPointer<vtkPNGReader>::New();
+		Reader1->SetFileName(fixedImageFile);
+
+		vtkSmartPointer<vtkPNGReader> Reader2 =
+			vtkSmartPointer<vtkPNGReader>::New();
+		Reader2->SetFileName("C:/engg199-03/finalproject3/data/output.png");
+
+
+		// Combine the images (blend takes multiple connections on the 0th input port)
+		vtkSmartPointer<vtkImageBlend> blend = vtkSmartPointer<vtkImageBlend>::New();
+		blend->AddInputConnection(Reader1->GetOutputPort());
+		blend->AddInputConnection(Reader2->GetOutputPort());
+		blend->SetOpacity(0, 1.0);
+		blend->SetOpacity(1, 0.5);
+
+		// Display the result
+		vtkSmartPointer<vtkImageViewer2> imageViewer = vtkSmartPointer<vtkImageViewer2>::New();
+		imageViewer->SetInputConnection(blend->GetOutputPort());
+		imageViewer->SetRenderWindow(viewport3->GetRenderWindow()); // Tell it to use our QVTKWidget as the viewport
+		imageViewer->GetRenderer()->ResetCamera();
+		imageViewer->Render();
+	}
+
+	void slider_changed(int value)
+	{
+		// set slider min and max.
+		slider->setRange(0, 2);
+
+		if (viewer1 == NULL)
+			return;
+
+		viewer1->GetWindowLevel()->SetLevel(value); // Set the level 
+		viewer1->GetWindowLevel()->SetWindow(2); // Set the window (display range)
+		viewer1->Render();
+	}
+
+
+	void load_ct()
+	{
+
+	
+	}
+
+};
